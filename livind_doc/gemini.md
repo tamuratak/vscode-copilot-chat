@@ -117,7 +117,7 @@ sequenceDiagram
 ```
 
 ## 参照ファイル一覧
-- [src/extension/byok/vscode-node/geminiNativeProvider.ts](src/extension/byok/vscode-node/geminiNativeProvider.ts#L22-L295) — Gemini の BYOK ネイティブプロバイダー。`GoogleGenAI` クライアントを初期化し、`models.list()` や `models.generateContentStream()` を呼ぶ。
+- [src/extension/byok/vscode-node/geminiNativeProvider.ts](/src/extension/byok/vscode-node/geminiNativeProvider.ts#L22-L295) — Gemini の BYOK ネイティブプロバイダー。`GoogleGenAI` クライアントを初期化し、`models.list()` や `models.generateContentStream()` を呼ぶ。
 - [src/extension/byok/common/geminiMessageConverter.ts](src/extension/byok/common/geminiMessageConverter.ts#L11-L305) — VS Code 型と Gemini 型の相互変換ロジック（ツールコール/ツール結果/画像処理 等）。
 - [src/extension/byok/common/geminiFunctionDeclarationConverter.ts](src/extension/byok/common/geminiFunctionDeclarationConverter.ts#L6-L120) — JSON スキーマ → Gemini 関数宣言変換ロジック。
 - [src/extension/byok/common/test/geminiMessageConverter.spec.ts](src/extension/byok/common/test/geminiMessageConverter.spec.ts) — 変換ロジックのユニットテスト（参照）。
