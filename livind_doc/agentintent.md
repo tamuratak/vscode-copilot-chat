@@ -4,8 +4,15 @@
 - 本会話の要約と図を `livind_doc/agentintent.md` に書き込むよう指示した。
 
 # Assistant
-- `AgentIntent` によるツール選定とプロンプト構築、`ChatEndpoint` による API リクエスト作成・送信・レスポンス処理という 2 層の主要フローを説明した（[src/extension/intents/node/agentIntent.ts](src/extension/intents/node/agentIntent.ts#L51-L327)、[src/platform/endpoint/node/chatEndpoint.ts](src/platform/endpoint/node/chatEndpoint.ts#L112-L392)）。
-- エージェント意図とチャットエンドポイントの仕組みを可視化した Mermaid 図を提示した。
+ユーザー入力から送信・応答までの道筋は、`AgentIntent` が `EditCodeIntent` を継承して会話をエージェント用に設定し、ツールやトークン制限のオーバーライドと共に「Agent」ロケーションで処理することで始まります。[src/extension/intents/node/agentIntent.ts](src/extension/intents/node/agentIntent.ts#L126-L151)
+
+- `getAgentTools` が使用可能工具をモデル依存・学習済み設定・実験構成・外部ツール要件で決めるため、新しいリクエストごとに必要な編集・テスト・タスクなどのツール群をフィルタリングして返します。[src/extension/intents/node/agentIntent.ts](src/extension/intents/node/agentIntent.ts#L51-L124)
+
+- `AgentIntentInvocation.buildPrompt` ではコードベース参照、チャット変数、ツール参照、トークン予備枠をまとめ、`PromptRenderer` で実際のプロンプトを生成。バジェット超過時はサマライズを挟んで再描画し、最終的にキャッシュブレークポイントやメタデータ統合まで行った結果を返します。[src/extension/intents/node/agentIntent.ts](src/extension/intents/node/agentIntent.ts#L187-L327)
+
+- `ChatEndpoint.createRequestBody`/`customize*` が適切な API（Responses/Messages/Completions）向けの本文を組み立て、`makeChatRequest2` が `ChatMLFetcher.fetchOne` 経由で送信してエンドポイント間でトークン予算を調整します。[src/platform/endpoint/node/chatEndpoint.ts](src/platform/endpoint/node/chatEndpoint.ts#L227-L385)
+
+- 受信した SSE やノンストリーミング応答は `processResponseFromChatEndpoint` がモデルの対応状況に応じて正しいプロセッサ（Responses/Messages/Streaming/非ストリーム）を呼び、完了・ツール呼び出し・テレメトリを整えて上位に渡します。[src/platform/endpoint/node/chatEndpoint.ts](src/platform/endpoint/node/chatEndpoint.ts#L294-L312)
 
 ```mermaid
 classDiagram
