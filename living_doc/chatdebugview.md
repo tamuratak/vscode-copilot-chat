@@ -16,8 +16,17 @@
 - **フィルタと設定保存:** `LogTreeFilters` と `LogTreeFilterCommands` が要素・ツール・NES・Ghost などのフィルタ表示を管理し、workspaceState に設定を保存、関連するコンテキストも更新します。
 - **自動有効化条件:** `ContextKeysContribution._updateShowLogViewContext()` は、拡張が内部向けトークンを持つか非プロダクション環境であれば `_showLogView` を有効化し、ビューを表示状態にします。
 - **関連操作のトリガ:** `package.json` 側でチャットパネルのタイトルメニューにも `github.copilot.debug.showChatLogView` を追加しており、チャットパネルからもデバッグビューを開けます。
+- **Copilot Markdown 表示:** `ChatRequestScheme` が `ccreq` スキームで `.copilotmd` / `.json` / `.request.json` URI を組み立て・解析・リンク抽出し、`RequestLogger` 実装が `workspace.registerTextDocumentContentProvider` で Markdown/JSON/Raw request を返す（Markdown は `_renderRequestToMarkdown` / `_renderToolCallToMarkdown` 経由）と同時に `output` ビュー向けに `ChatRequestScheme.findAllUris` を使ったリンクプロバイダーを登録する。`RequestLogTree` のコマンドや TreeItem は `ChatRequestScheme.buildUri` で生成した `ccreq` URI を `vscode.open` に渡すことでそのまま `.copilotmd` を表示・保存・エクスポートできる。
 
 Mermaid ダイアグラム: なし（本セッションで生成された mermaid 図はありません）
+
+**Copilot Markdown 表示の実装**
+
+`ChatRequestScheme` は `ccreq` をプリフィックスとし、`buildUri` で「latest」/個別エントリの `.copilotmd`・`.json`・`.request.json` を組み立て、`parseUri` で逆に解釈し、`findAllUris` でテキスト中の `ccreq` リンクを検索する [src/platform/requestLogger/node/requestLogger.ts](src/platform/requestLogger/node/requestLogger.ts#L25-L91)。
+
+`RequestLogger` 実装 (`RequestLogger` クラス) は `workspace.registerTextDocumentContentProvider` で `ChatRequestScheme.chatRequestScheme` を登録し、URI のフォーマットに応じて Markdown / JSON / raw request を返す。Markdown では `_renderRequestToMarkdown` や `_renderToolCallToMarkdown` で人間向けに整形し、`addEntry` で新規エントリを保持するたびに `ChatRequestScheme.buildUri` をログに出力して `ccreq` を参照可能にしている [src/extension/prompt/vscode-node/requestLoggerImpl.ts](src/extension/prompt/vscode-node/requestLoggerImpl.ts#L251-L422)。同ファイルの `_ensureLinkProvider` は `ChatRequestScheme.findAllUris` を使って `output` ドキュメント上の `ccreq` テキストを DocumentLink に変換し、`output` ビューからでも `.copilotmd` を開けるようにしている [src/extension/prompt/vscode-node/requestLoggerImpl.ts](src/extension/prompt/vscode-node/requestLoggerImpl.ts#L401-L422)。
+
+`RequestLogTree` は 1) `exportLogItem` / `saveCurrentMarkdown` / `showRawRequestBody` などのコマンドで `ChatRequestScheme.buildUri` から取得した仮想 URI を `vscode.workspace.openTextDocument` で読み込み、2) `ChatPromptItem` / `ToolCallItem` / `ChatRequestItem` の `command` に `vscode.open` を設定してツリーからそのまま `.copilotmd` を表示できるようにしている [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L120-L260) [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L716-L815)。
 
 参照ファイル一覧:
 
@@ -28,5 +37,9 @@ Mermaid ダイアグラム: なし（本セッションで生成された mermai
 - **ログツリー実装:** [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L33-L45) — `RequestLogTree` のコマンド定義と `TreeDataProvider` 登録。
 - **ログツリーの主要クラス:** [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L760-L818) — `ChatRequestItem` 等の TreeItem 実装。
 - **フィルタ実装:** [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L820-L830) — `LogTreeFilters` の初期化、設定保存ロジック。
+- **Copilot Markdown スキーム:** [src/platform/requestLogger/node/requestLogger.ts](src/platform/requestLogger/node/requestLogger.ts#L25-L91) — `ChatRequestScheme` による `ccreq` URI の構築・解析・リンク検索。
+- **Markdown プロバイダー:** [src/extension/prompt/vscode-node/requestLoggerImpl.ts](src/extension/prompt/vscode-node/requestLoggerImpl.ts#L251-L422) — `workspace.registerTextDocumentContentProvider` による `.copilotmd` / `.json` / `rawrequest` の返却。
+- **リンクプロバイダー:** [src/extension/prompt/vscode-node/requestLoggerImpl.ts](src/extension/prompt/vscode-node/requestLoggerImpl.ts#L401-L422) — `output` 上の `ccreq` を `DocumentLink` としてクリック可能にする。
+- **コマンドとツリーからの表示:** [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L120-L260) — `exportLogItem` / `saveCurrentMarkdown` 等で `ChatRequestScheme` を使って仮想 URI から `.copilotmd` を読み込み、ツリーの `ChatPromptItem` / `ToolCallItem` / `ChatRequestItem` が `vscode.open` で `ccreq` を表示。
 
 必要なら、このドキュメントをベースに「実行手順（コマンド実行例）」や「デバッグ時に確認すべきログ項目」のチェックリストを追記します。
