@@ -28,6 +28,12 @@ Mermaid ダイアグラム: なし（本セッションで生成された mermai
 
 `RequestLogTree` は 1) `exportLogItem` / `saveCurrentMarkdown` / `showRawRequestBody` などのコマンドで `ChatRequestScheme.buildUri` から取得した仮想 URI を `vscode.workspace.openTextDocument` で読み込み、2) `ChatPromptItem` / `ToolCallItem` / `ChatRequestItem` の `command` に `vscode.open` を設定してツリーからそのまま `.copilotmd` を表示できるようにしている [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L120-L260) [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L716-L815)。
 
+**ファイルシステムプロバイダーの有無**
+
+- `ccreq` スキームとそれに紐づく `buildUri`/`parseUri`/`findAllUris` は `ChatRequestScheme` が定義しており、`ccreq:latest.copilotmd`／`ccreq:{id}.json` などを組み立てる。ログはこの仮想 URI で参照される設計になっており、実ファイルを持たないまま `ccreq` を生成・解析するコードは [src/platform/requestLogger/node/requestLogger.ts](src/platform/requestLogger/node/requestLogger.ts#L25-L91) で完結している。
+- `RequestLogger` 側は `workspace.registerTextDocumentContentProvider` を使って `ChatRequestScheme.chatRequestScheme` を登録し、Markdown／JSON／raw request をオンデマンドで返却している。`provideTextDocumentContent` では現在保持しているログエントリに応じて文字列を構築し、`_ensureLinkProvider` では `ChatRequestScheme.findAllUris` を使って `output` ビュー上に `ccreq` リンクを DocumentLink に変換しているので、出力からも同じ仮想 URI を開けるようになっている [src/extension/prompt/vscode-node/requestLoggerImpl.ts](src/extension/prompt/vscode-node/requestLoggerImpl.ts#L251-L422)。
+- そのため、`RequestLogTree` のコマンド／TreeItem はすべて `ccreq` URI を `vscode.workspace.openTextDocument` や `vscode.open` に渡して読み書きしており、実際に `registerFileSystemProvider` などのファイルシステムプロバイダーを追加していない。集合的な参照はツリー内 `ChatPromptItem` や `ChatRequestItem` の `command` でも `ccreq` を渡していて、全て上記の TextDocumentContentProvider に依存している [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L120-L220) [src/extension/log/vscode-node/requestLogTree.ts](src/extension/log/vscode-node/requestLogTree.ts#L700-L820)。
+
 参照ファイル一覧:
 
 - **Context keys 実装:** [src/extension/contextKeys/vscode-node/contextKeys.contribution.ts](src/extension/contextKeys/vscode-node/contextKeys.contribution.ts#L62-L66) — `github.copilot.debug.showChatLogView` コマンド登録と `setContext` 実行箇所。
