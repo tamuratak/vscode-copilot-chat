@@ -1,3 +1,9 @@
+## Usert
+
+summarization の概要調査
+
+## Assistant
+
 概要としては、履歴の圧縮は `ConversationHistorySummarizationPrompt` から始まり、システム／ユーザー向けに細かいアウトライン（`<analysis>`＋`<summary>` セクション、直近ツールコマンドの把握、実行中の状態など）を提示するプロンプトで会話全体を要約させます。`SimpleSummarizedHistory` を使う簡易モードもあり、動的に最近のノートブック状態を付け加える `WorkingNotebookSummary` や Claude Opus 系への「ツール禁止」注意も含まれています。[src/extension/prompts/node/agent/summarizedConversationHistory.tsx#L48-L201]
 
 レンダリング側では `ConversationHistory` がツール実行のラウンドを逆順にたどり、要約済みラウンドがあればその要約を `SummaryMessageElement` で表示しつつ、直近のツール結果やユーザーリクエストを先頭に戻すかたちで再構成します。`SummarizedConversationHistory` は `triggerSummarize` で履歴について要約が必要だと判断したときに `ConversationHistorySummarizer` を起動し、生成された要約＋thinking を履歴／現在ラウンドに紐づけるためのメタデータを差し込みます（次ターンで継続するよう `isContinuation` を切り替えたり、ツール結果を丸めたりする）。[src/extension/prompts/node/agent/summarizedConversationHistory.tsx#L204-L405]
