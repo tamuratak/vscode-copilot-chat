@@ -97,6 +97,50 @@ sequenceDiagram
 
 参照: `postRequest`/`getRequest` の流れは [src/platform/networking/common/networking.ts](src/platform/networking/common/networking.ts#L147-L212) を参照。
 
+## チャット添付画像の処理
+
+### 添付データの取り込み
+- ユーザーがチャットリクエストに画像を添付すると `vscode.ChatPromptReference#value` に [ChatReferenceBinaryData](src/extension/vscode.proposed.chatBinaryReferenceData.d.ts#L11-L33) が保持され、`renderChatVariables` では `variableValue instanceof ChatReferenceBinaryData` を判定した上で `Image` 要素を生成して `variableValue.data()` で取得した `Uint8Array` をそのまま渡します。[src/extension/prompts/node/panel/chatVariables.tsx](src/extension/prompts/node/panel/chatVariables.tsx#L180-L214)
+- `Image` 要素は `PromptElement` であり、視覚対応エンドポイント (`supportsVision`) 以外では参照情報だけを出し、対応する場合は `BaseImage` で画像 (`imageSource`) を描画します。[src/extension/prompts/node/panel/image.tsx](src/extension/prompts/node/panel/image.tsx#L39-L90)
+
+### GitHub経由のアップロードと CAPI 連携
+- `Image` はまず `Uint8Array` から Base64 に変換し、`RequestType.ChatCompletions` の CAPI に対するリクエストかつ `ConfigKey.EnableChatImageUpload` が有効で (`modelCanUseImageURL(this.promptEndpoint)` が `true`) のときのみアップロードを試みます。[src/extension/prompts/node/panel/image.tsx](src/extension/prompts/node/panel/image.tsx#L39-L90)
+- アップロード処理は `authService.getGitHubSession('any', { silent: true })` で GitHub トークンを取り、そのトークン＋ `getMimeType` で推定した MIME タイプを渡して `IImageService.uploadChatImageAttachment` を呼び出します。このサービスは `RequestType.ChatAttachmentUpload` を使って `ICAPIClientService.makeRequest` 経由で `BaseCAPIClientService` に送信し、画像を GitHub に送った後の URL を `URI.parse(result.url)` で受け取ります。[src/platform/image/common/imageService.ts](src/platform/image/common/imageService.ts#L9-L23)、[src/platform/image/node/imageServiceImpl.ts](src/platform/image/node/imageServiceImpl.ts#L11-L51)、[src/util/common/imageUtils.ts](src/util/common/imageUtils.ts#L103-L116)
+- `ImageServiceImpl` は `mimeType` と `token` がなければ例外を投げ、ファイル名を英数字＋`._-` 以外を除去して拡張子がないときは MIME から補完します。CAPI リクエストでは `Content-Type: application/octet-stream`、`Authorization: Bearer <token>`、`RequestType.ChatAttachmentUpload` とともにバイナリを送信し、失敗すると例外を投げて呼び出し元でベース64にフォールバックします。[src/platform/image/node/imageServiceImpl.ts](src/platform/image/node/imageServiceImpl.ts#L11-L51)
+- アップロードに失敗したりトークン/実験フラグが揃わないときや、モデルが画像 URL を受け付けない (`modelCanUseImageURL` が `false`) 場合は `BaseImage` に Base64 文字列を与えて描画し、警告ログを出して対応します。[src/extension/prompts/node/panel/image.tsx](src/extension/prompts/node/panel/image.tsx#L57-L90)
+
+### ツール出力画像の同様のパス
+- ツール呼び出しの `onImage` でも同じ `EnableChatImageUpload` フラグと `modelCanUseMcpResultImageURL` を確認し、許可されていれば `authService.getGitHubSession` で取得したトークンを `imageDataPartToTSX` に渡します。[src/extension/prompts/node/panel/toolCalling.tsx](src/extension/prompts/node/panel/toolCalling.tsx#L525-L545)
+- `imageDataPartToTSX` は画像データを Base64 文字列にし、CAPI `RequestType.ChatCompletions` であれば `imageService.uploadChatImageAttachment` を呼び出して同様に URL を取得。失敗時はベース64へフォールバックするため、ツール画像もユーザーに表示できます。[src/extension/prompts/node/panel/toolCalling.tsx](src/extension/prompts/node/panel/toolCalling.tsx#L367-L386)
+
+### モデル依存の制約
+- `modelCanUseImageURL` は `model.family` が `gemini` 系でないかつ隠し `HiddenModelF` でないモデルを `true` にします。これにより Gemini 系モデルや過去の `HiddenModelF` では画像 URL を送らずベース64のままとなります。[src/platform/endpoint/common/chatModelCapabilities.ts](src/platform/endpoint/common/chatModelCapabilities.ts#L161-L194)
+- MCP ツール結果の画像はさらに厳しく、Anthropic 系、`gemini` 系、`HiddenModelE/F` を除外する `modelCanUseMcpResultImageURL` の判定を通ったときだけアップロードします。対応しないモデルでは画像 URL を含めず `imageDataPartToTSX` が Base64 を返します。[同上]
+
+```mermaid
+sequenceDiagram
+	participant ChatRequest
+	participant ChatVariables
+	participant ImageComponent
+	participant AuthService
+	participant ImageService
+	participant BaseCAPIClientService
+	participant GitHub
+	participant ToolResult
+
+	ChatRequest->>ChatVariables: ChatReferenceBinaryData を含む参照を流す
+	ChatVariables->>ImageComponent: `Image(variableValue.data())`
+	ImageComponent->>AuthService: GitHub セッション `getGitHubSession('any')`
+	ImageComponent->>ImageService: uploadChatImageAttachment(...)（RequestType.ChatAttachmentUpload）
+	ImageService->>BaseCAPIClientService: makeRequest + AB ヘッダー
+	BaseCAPIClientService->>GitHub: バイナリを POST
+	GitHub-->>BaseCAPIClientService: URL を返却
+	BaseCAPIClientService-->>ImageService: URI を受け取る
+	ImageService-->>ImageComponent: `URI` を返す
+	ImageComponent-->>ChatVariables: `BaseImage(src=URL または Base64)` を描画
+	ToolResult->>ImageService: imageDataPartToTSX を介して同一のアップロード
+```
+
 ---
 
 ## 参照したファイル一覧と短い説明
@@ -111,6 +155,14 @@ sequenceDiagram
 - [src/platform/snippy/common/snippyFetcher.ts](src/platform/snippy/common/snippyFetcher.ts#L25-L36) — Snippy 呼び出し（`RequestType.SnippyMatch` 等）。
 - [src/extension/prompts/node/panel/toolCalling.tsx](src/extension/prompts/node/panel/toolCalling.tsx#L367-L387) — ツール結果の画像取り扱いで `RequestType.ChatCompletions` を判定する箇所。
 - [src/platform/requestLogger/node/requestLogger.ts](src/platform/requestLogger/node/requestLogger.ts#L234-L257) — リクエストログの実装（`RequestMetadata` を扱う）。
+- [src/extension/prompts/node/panel/chatVariables.tsx](src/extension/prompts/node/panel/chatVariables.tsx#L180-L214) — `ChatReferenceBinaryData` を拾って `Image` 要素へ渡すロジック。
+- [src/extension/vscode.proposed.chatBinaryReferenceData.d.ts](src/extension/vscode.proposed.chatBinaryReferenceData.d.ts#L11-L33) — VS Code 側の `ChatReferenceBinaryData` 定義（`mimeType` や `data()` を公開）。
+- [src/extension/prompts/node/panel/image.tsx](src/extension/prompts/node/panel/image.tsx#L39-L90) — `supportsVision`/`RequestType.ChatCompletions`/`EnableChatImageUpload` を検証して GitHub へアップロードする `Image` コンポーネント。
+- [src/platform/image/common/imageService.ts](src/platform/image/common/imageService.ts#L9-L23) — `IImageService.uploadChatImageAttachment` のインターフェース定義。
+- [src/platform/image/node/imageServiceImpl.ts](src/platform/image/node/imageServiceImpl.ts#L11-L51) — トークン・MIME チェック、ファイル名の正規化、`RequestType.ChatAttachmentUpload` 付き POST、GitHub から返された URL を `URI.parse` して返す実装。
+- [src/util/common/imageUtils.ts](src/util/common/imageUtils.ts#L103-L116) — Base64 文字列から MIME タイプを推定する `getMimeType`。
+- [src/platform/endpoint/common/chatModelCapabilities.ts](src/platform/endpoint/common/chatModelCapabilities.ts#L161-L194) — `modelCanUseImageURL`/`modelCanUseMcpResultImageURL` によるモデルごとの画像 URL 制限。
+- [src/extension/prompts/node/panel/toolCalling.tsx](src/extension/prompts/node/panel/toolCalling.tsx#L525-L545) — ツール画像のアップロード可否判定と GitHub トークン取得。
 
 
 ---
