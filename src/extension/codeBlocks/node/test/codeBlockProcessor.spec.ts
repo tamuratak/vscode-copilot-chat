@@ -548,4 +548,62 @@ suite('CodeBlockProcessor', () => {
 
 	});
 
+	test('flush should not duplicate fence line before filepath marker', () => {
+		const reportedCodeblocks: CodeBlock[] = [];
+		const reportedMarkdown: ReportedMarkdown[] = [];
+		const tracker = newCodeBlockProcessor(reportedCodeblocks, reportedMarkdown);
+
+		tracker.processMarkdown('```ts\n', undefined);
+		tracker.flush();
+		tracker.processMarkdown('// filepath: /project/foo\n', undefined);
+		tracker.processMarkdown('const x = 1;\n', undefined);
+		tracker.processMarkdown('```', undefined);
+		tracker.flush();
+
+		const resource = URI.file('/project/foo');
+		const language = 'ts';
+
+		assert.deepEqual(reportedMarkdown, [
+			{ markdown: '```ts\n', codeBlock: { index: 0, resource, language }, vulnerabilities: undefined },
+			{ markdown: 'const x = 1;\n', codeBlock: { index: 0, resource, language }, vulnerabilities: undefined },
+			{ markdown: '```', codeBlock: { index: 0, resource, language }, vulnerabilities: undefined },
+		]);
+
+		assert.deepEqual(reportedCodeblocks, [{
+			code: 'const x = 1;\n',
+			markdownBeforeBlock: '',
+			language,
+			resource
+		}]);
+	});
+
+	test('multiple flush calls should not duplicate fence line', () => {
+		const reportedCodeblocks: CodeBlock[] = [];
+		const reportedMarkdown: ReportedMarkdown[] = [];
+		const tracker = newCodeBlockProcessor(reportedCodeblocks, reportedMarkdown);
+
+		tracker.processMarkdown('```ts\n', undefined);
+		tracker.flush();
+		tracker.flush();
+		tracker.processMarkdown('const x = 1;\n', undefined);
+		tracker.processMarkdown('```', undefined);
+		tracker.flush();
+
+		const resource = undefined;
+		const language = 'ts';
+
+		assert.deepEqual(reportedMarkdown, [
+			{ markdown: '```ts\n', codeBlock: { index: 0, resource, language }, vulnerabilities: undefined },
+			{ markdown: 'const x = 1;\n', codeBlock: { index: 0, resource, language }, vulnerabilities: undefined },
+			{ markdown: '```', codeBlock: { index: 0, resource, language }, vulnerabilities: undefined },
+		]);
+
+		assert.deepEqual(reportedCodeblocks, [{
+			code: 'const x = 1;\n',
+			markdownBeforeBlock: '',
+			language,
+			resource
+		}]);
+	});
+
 });

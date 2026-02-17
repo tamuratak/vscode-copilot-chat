@@ -180,6 +180,7 @@ export class CodeBlockProcessor {
 		readonly fence: string;
 		readonly vulnerabilities?: ChatVulnerability[];
 		readonly firstLine: MarkdownString;
+		firstLineEmitted: boolean;
 	} | undefined;
 	private readonly _code: string[] = [];
 	private readonly _markdownBeforeBlock: string[] = [];
@@ -271,11 +272,11 @@ export class CodeBlockProcessor {
 					codeBlock.info.resource = this._resolveCodeblockPath(filePath);
 				}
 				this._state = State.LineAfterFilePath;
-				this._emitMarkdown(codeBlock.firstLine, codeBlock.info, codeBlock.vulnerabilities);
+				this._emitFirstLineOfCurrentBlockOnce();
 				return;
 			} else {
 				this._state = State.InCodeBlock;
-				this._emitMarkdown(codeBlock.firstLine, codeBlock.info, codeBlock.vulnerabilities);
+				this._emitFirstLineOfCurrentBlockOnce();
 				// this was a normal line, not a file path. Continue handling the line
 			}
 		} else if (this._state === State.LineAfterFilePath) {
@@ -298,6 +299,7 @@ export class CodeBlockProcessor {
 					},
 					fence: fenceLanguageIdMatch[1],
 					firstLine: line,
+					firstLineEmitted: false,
 					vulnerabilities,
 				};
 				this._state = State.LineAfterFence;
@@ -338,6 +340,16 @@ export class CodeBlockProcessor {
 
 	}
 
+	private _emitFirstLineOfCurrentBlockOnce(): void {
+		const codeBlock = this._currentBlock;
+		if (!codeBlock || codeBlock.firstLineEmitted) {
+			return;
+		}
+
+		this._emitMarkdown(codeBlock.firstLine, codeBlock.info, codeBlock.vulnerabilities);
+		codeBlock.firstLineEmitted = true;
+	}
+
 
 	flush(): void {
 		if (this._lastIncompleteLine) {
@@ -345,7 +357,7 @@ export class CodeBlockProcessor {
 			this._lastIncompleteLine = undefined;
 		}
 		if (this._state === State.LineAfterFence && this._currentBlock) {
-			this._emitMarkdown(this._currentBlock.firstLine, this._currentBlock.info, this._currentBlock.vulnerabilities);
+			this._emitFirstLineOfCurrentBlockOnce();
 		}
 	}
 }
