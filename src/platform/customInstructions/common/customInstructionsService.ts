@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { match } from '../../../util/vs/base/common/glob';
@@ -288,20 +288,24 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 	}
 
 	public async getAgentInstructions(): Promise<URI[]> {
-		const result = [];
+		const result = new ResourceSet();
 		if (this.configurationService.getConfig(ConfigKey.UseInstructionFiles)) {
+			for (const instruction of vscode.chat?.instructions ?? []) {
+				result.add(URI.revive(instruction.uri));
+			}
+
 			for (const folder of this.workspaceService.getWorkspaceFolders()) {
 				try {
 					const uri = extUriBiasedIgnorePathCase.joinPath(folder, COPILOT_INSTRUCTIONS_PATH);
 					if ((await this.fileSystemService.stat(uri)).type === FileType.File) {
-						result.push(uri);
+						result.add(uri);
 					}
 				} catch (e) {
 					// ignore non-existing instruction files
 				}
 			}
 		}
-		return result;
+		return [...result];
 	}
 
 	public async fetchInstructionsFromSetting(configKey: Config<CodeGenerationInstruction[]>): Promise<ICustomInstructions[]> {
