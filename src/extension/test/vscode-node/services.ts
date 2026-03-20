@@ -5,6 +5,7 @@
 
 import { CopilotTokenStore, ICopilotTokenStore } from '../../../platform/authentication/common/copilotTokenStore';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../platform/chat/common/blockedExtensionService';
+import { IChatInstructionsService } from '../../../platform/chat/common/chatInstructionsService';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { TestChatSessionService } from '../../../platform/chat/test/common/testChatSessionService';
@@ -202,6 +203,10 @@ export function createExtensionTestingServices(): TestingServiceCollection {
 	testingServiceCollection.define(IPromptsService, new SyncDescriptor(PromptsServiceImpl));
 	testingServiceCollection.define(IToolsService, new SyncDescriptor(NullToolsService));
 	testingServiceCollection.define(IChatDiskSessionResources, new SyncDescriptor(ChatDiskSessionResources));
+	testingServiceCollection.define(IChatInstructionsService, {
+		_serviceBrand: undefined,
+		getInstructions: async () => []
+	});
 	testingServiceCollection.define(IChatSessionService, new SyncDescriptor(TestChatSessionService));
 	testingServiceCollection.define(INotebookService, new SyncDescriptor(SimulationNotebookService));
 	testingServiceCollection.define(IRunCommandExecutionService, new SyncDescriptor(MockRunCommandExecutionService));

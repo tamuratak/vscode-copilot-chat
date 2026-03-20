@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { match } from '../../../util/vs/base/common/glob';
@@ -16,6 +16,7 @@ import { extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resourc
 import { isObject } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { FileType, Uri } from '../../../vscodeTypes';
+import { IChatInstructionsService } from '../../chat/common/chatInstructionsService';
 import { IRunCommandExecutionService } from '../../commands/common/runCommandExecutionService';
 import { CodeGenerationImportInstruction, CodeGenerationTextInstruction, Config, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { INativeEnvService } from '../../env/common/envService';
@@ -116,6 +117,7 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatInstructionsService private readonly chatInstructionsService: IChatInstructionsService,
 		@INativeEnvService private readonly envService: INativeEnvService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
@@ -290,8 +292,8 @@ export class CustomInstructionsService extends Disposable implements ICustomInst
 	public async getAgentInstructions(): Promise<URI[]> {
 		const result = new ResourceSet();
 		if (this.configurationService.getConfig(ConfigKey.UseInstructionFiles)) {
-			for (const instruction of vscode.chat?.instructions ?? []) {
-				result.add(URI.revive(instruction.uri));
+			for (const instruction of await this.chatInstructionsService.getInstructions()) {
+				result.add(instruction);
 			}
 
 			for (const folder of this.workspaceService.getWorkspaceFolders()) {

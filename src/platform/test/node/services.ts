@@ -20,6 +20,7 @@ import { StaticGitHubAuthenticationService } from '../../authentication/common/s
 import { createStaticGitHubTokenProvider } from '../../authentication/node/copilotTokenManager';
 import { SimulationTestCopilotTokenManager } from '../../authentication/test/node/simulationTestCopilotTokenManager';
 import { IChatAgentService } from '../../chat/common/chatAgents';
+import { IChatInstructionsService } from '../../chat/common/chatInstructionsService';
 import { IChatQuotaService } from '../../chat/common/chatQuotaService';
 import { ChatQuotaService } from '../../chat/common/chatQuotaServiceImpl';
 import { IChatSessionService } from '../../chat/common/chatSessionService';
@@ -213,6 +214,10 @@ export function _createBaselineServices(): TestingServiceCollection {
 		rejectionMessage = 'Sorry, but I can only assist with programming related questions.';
 	}));
 	testingServiceCollection.define(IChatAgentService, new SyncDescriptor(TestChatAgentService));
+	testingServiceCollection.define(IChatInstructionsService, {
+		_serviceBrand: undefined,
+		getInstructions: async () => []
+	});
 	testingServiceCollection.define(IFileSystemService, new SyncDescriptor(MockFileSystemService));
 	testingServiceCollection.define(IGithubRepositoryService, new SyncDescriptor(GithubRepositoryService));
 	testingServiceCollection.define(IGitService, new SyncDescriptor(NullGitExtensionService));

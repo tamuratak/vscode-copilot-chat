@@ -8,11 +8,13 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { AuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgradeService';
 import { CopilotTokenStore, ICopilotTokenStore } from '../../../platform/authentication/common/copilotTokenStore';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../platform/chat/common/blockedExtensionService';
+import { IChatInstructionsService } from '../../../platform/chat/common/chatInstructionsService';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ChatQuotaService } from '../../../platform/chat/common/chatQuotaServiceImpl';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { IConversationOptions } from '../../../platform/chat/common/conversationOptions';
 import { IInteractionService, InteractionService } from '../../../platform/chat/common/interactionService';
+import { ChatInstructionsService } from '../../../platform/chat/vscode/chatInstructionsService';
 import { ChatSessionService } from '../../../platform/chat/vscode/chatSessionService';
 import { IRunCommandExecutionService } from '../../../platform/commands/common/runCommandExecutionService';
 import { RunCommandExecutionServiceImpl } from '../../../platform/commands/vscode/runCommandExecutionServiceImpl';
@@ -139,6 +141,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 		topP: 1,
 		rejectionMessage: l10n.t('Sorry, but I can only assist with programming related questions.'),
 	});
+	builder.define(IChatInstructionsService, new SyncDescriptor(ChatInstructionsService));
 	builder.define(IChatSessionService, new SyncDescriptor(ChatSessionService));
 	builder.define(IConfigurationService, new SyncDescriptor(ConfigurationServiceImpl));
 	builder.define(ILogService, new SyncDescriptor(LogServiceImpl, [[new NewOutputChannelLogTarget(extensionContext)]]));

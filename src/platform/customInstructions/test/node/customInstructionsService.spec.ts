@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, expect, suite, test } from 'vitest';
+import { IChatInstructionsService } from '../../../../platform/chat/common/chatInstructionsService';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IConfigurationService } from '../../../configuration/common/configurationService';
@@ -175,6 +176,32 @@ suite('CustomInstructionsService - Skills', () => {
 		test('should return false for regular files', async () => {
 			const regularFileUri = URI.file('/workspace/src/file.ts');
 			expect(await customInstructionsService.isExternalInstructionsFile(regularFileUri)).toBe(false);
+		});
+	});
+
+	suite('getAgentInstructions', () => {
+		test('should include instruction files from the user data dir', async () => {
+			const userDataInstructionUri = URI.from({ scheme: 'vscode-userdata', path: '/User/prompts/setup.instructions.md' });
+			const services = createPlatformServices();
+			services.define(IWorkspaceService, new SyncDescriptor(
+				TestWorkspaceService,
+				[[URI.file('/workspace')], []]
+			));
+
+			const localConfigService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
+			services.define(IConfigurationService, localConfigService);
+			services.define(IChatInstructionsService, {
+				_serviceBrand: undefined,
+				getInstructions: async () => [userDataInstructionUri]
+			});
+
+			const localAccessor = services.createTestingAccessor();
+			try {
+				const localService = localAccessor.get(ICustomInstructionsService);
+				expect((await localService.getAgentInstructions()).map(uri => uri.toString())).toEqual([userDataInstructionUri.toString()]);
+			} finally {
+				localAccessor.dispose();
+			}
 		});
 	});
 
